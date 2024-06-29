@@ -1,0 +1,95 @@
+#!/bin/env bash
+
+help(){
+    echo "Usage: spot [OPTION]"
+    echo ""
+    echo "Options:"
+    echo "  skip        Skips to the next track"
+    echo "  prev        Goes to the previous track"
+    echo "  playpause   Pauses or Unpauses"
+    echo "  status      Echos the current status of spotify"
+    echo "  artist      Echos the artist of the current track*"
+    echo "  song        Echos the title of the current track*"
+    echo "  album       Echos the album of the current track*"
+    echo ""
+    echo "* = output is blank if unavalible"
+}
+
+skip()
+{
+    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Next
+}
+
+prev()
+{
+    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Previous
+}
+
+playpause()
+{
+    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.PlayPause
+}
+
+status()
+{
+    echo $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:org.mpris.MediaPlayer2.Player string:PlaybackStatus | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/')
+}
+
+metadata()
+{
+    dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:org.mpris.MediaPlayer2.Player string:Metadata    
+}
+
+artist()
+{
+    mdata=$(metadata)
+    echo "$mdata" | grep -A 2 artist | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/' 
+}
+
+song()
+{
+    mdata=$(metadata)
+    echo "$mdata"  | grep -A 1 title | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'  
+}
+
+album()
+{
+    mdata=$(metadata)
+    echo "$mdata"  | grep -A 1 ':album"' | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'  
+}
+
+for arg in $@
+do
+case "$arg" in
+    skip)
+	    skip
+        echo "skipping song"
+        ;;
+    prev)
+        prev
+        ;;
+    playpause)
+	    playpause
+        ;;
+    status)
+        status
+        ;;
+    artist)
+	    artist
+	    ;;
+    song)
+        song
+	    ;;
+    album)
+	    album
+	    ;;
+    help)
+	    help
+	    ;;
+    *)
+	    echo "Invalid argument: '$1'"
+	    echo "Use 'spot help' to see usage"
+	    ;;
+
+esac
+done
