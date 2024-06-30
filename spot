@@ -156,13 +156,13 @@ album()
 
 case "$1" in
     skip)
-	    db_control Next
+	db_control Next
         ;;
     prev)
         db_control Previous
         ;;
     playpause)
-	    db_control PlayPause
+	db_control PlayPause
         ;;
     play)
         db_control Play
@@ -177,14 +177,14 @@ case "$1" in
         status
         ;;
     artist)
-	    artist
-	    ;;
+	artist
+	;;
     song)
         song
-	    ;;
+	;;
     album)
-	    album
-	    ;;
+	album
+	;;
     metadata)
         metadata
         ;;
@@ -207,10 +207,10 @@ case "$1" in
         shufflestatus
         ;;
     help)
-	    help
-	    ;;
+	help
+	;;
     *)
-	    echo "Invalid argument: '$1'"
-	    echo "Use 'spot help' to see usage"
-	    ;;
+	echo "Invalid argument: '$1'"
+	echo "Use 'spot help' to see usage"
+	;;
 esac
