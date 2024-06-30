@@ -44,31 +44,34 @@ help(){
     echo "  setloopstatus [STATUS]"
     echo "                  Changes the loop status to STATUS"
     echo "                      Options:"
-    echo "                          THIS, THAT, THIS"
+    echo "                          'None', 'Playlist', 'Track'"
     echo "  shufflestatus"
     echo "                  Returns shuffle status"
     echo "  setshufflestatus [STATUS]"
     echo "                  Sets the shuffle status to STATUS"
     echo "                      Options:"
     echo "                          true, false"
-    echo "  rate"
+    echo "  ratestatus"
     echo "                  Returns the current rate"
     echo "  setrate [RATE]"
     echo "                  Sets the rate to RATE"
     echo "                      Options:"
-    echo "                          THIS, THAT, THIS"
+    echo "                          double from maxrate to minrate (inclusive)"
+    echo "                          Example:  '0.9'"
     echo "  maxrate"
     echo "                  Returns the maximum rate available"
     echo "  minrate"
     echo "                  Returns the minimum rate available"
-    echo "  volume"
+    echo "  volumestatus"
     echo "                  Returns the current volume"
     echo "  setvolume [VOLUME]"
     echo "                  Sets the volume to VOLUME"
     echo "                      Options:"
-    echo "                          THIS, THIS, THAT"
+    echo "                          double from 0 to 1"
+    echo "                          Exmaple: '0.5'"
     echo "  position"
-    echo "                  Returns the position in the current track"
+    echo "                  Returns the position in the current track in microseconds"
+    echo "                      This has millisecond percision so the last three 0s are unused"
     echo ""
     echo "MIC Options:"
     echo "  help"
@@ -82,53 +85,6 @@ db_object="org.mpris.MediaPlayer2.Player"
 db_control()
 {
     dbus-send --session --type=method_call --dest=$db_dest $db_path "$db_object.$1"
-}
-
-property_call()
-{
-    dbus-send --session --type=method_call --print-reply --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Get string:$db_object string:$1 
-}
-
-status()
-{
-    output=$(property_call PlaybackStatus)
-    echo "$output" | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'
-}
-
-volumestatus()
-{
-    output=$(property_call Volume)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
-}
-
-ratestatus()
-{
-    output=$(property_call Rate)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
-}
-
-minrate()
-{
-    output=$(property_call MinimumRate)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
-}
-
-maxrate()
-{
-    output=$(property_call MaximumRate)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
-}
-
-loopstatus()
-{
-    output=$(property_call LoopStatus)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}' | tr -d '"'
-}
-
-shufflestatus()
-{
-    output=$(property_call Shuffle)
-    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
 }
 
 metadata()
@@ -154,15 +110,93 @@ album()
     echo "$mdata"  | grep -A 1 ':album"' | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'  
 }
 
+property_call()
+{
+    dbus-send --session --type=method_call --print-reply --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Get string:$db_object string:$1 
+}
+
+property_set()
+{
+    dbus-send --session --print-reply --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Set string:$db_object string:$1 variant:$2
+}
+
+status()
+{
+    output=$(property_call PlaybackStatus)
+    echo "$output" | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'
+}
+
+loopstatus()
+{
+    output=$(property_call LoopStatus)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}' | tr -d '"'
+}
+
+setloopstatus()
+{
+    property_set LoopStatus "string:$1"
+}
+
+shufflestatus()
+{
+    output=$(property_call Shuffle)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+setshufflestatus()
+{
+    property_set Shuffle "boolean:$1"
+}
+
+ratestatus()
+{
+    output=$(property_call Rate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+setratestatus()
+{
+    property_set Rate "double:$1"
+}
+
+maxrate()
+{
+    output=$(property_call MaximumRate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+minrate()
+{
+    output=$(property_call MinimumRate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+volumestatus()
+{
+    output=$(property_call Volume)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+setvolume()
+{
+    property_set Volume "double:$1"
+}
+
+position()
+{
+    output=$(property_call Position)
+    echo "$output" | tail -n 1| awk -F " " '{print $3}'
+}
+
 case "$1" in
     skip)
-	db_control Next
+        db_control Next
         ;;
     prev)
         db_control Previous
         ;;
     playpause)
-	db_control PlayPause
+        db_control PlayPause
         ;;
     play)
         db_control Play
@@ -177,22 +211,22 @@ case "$1" in
         status
         ;;
     artist)
-	artist
-	;;
+        artist
+        ;;
     song)
         song
-	;;
+        ;;
     album)
-	album
-	;;
+        album
+        ;;
     metadata)
         metadata
         ;;
-    volume)
-        volumestatus
-        ;;
-    rate)
+    ratestatus)
         ratestatus
+        ;;
+    setratestatus)
+        setratestatus $2
         ;;
     minrate)
         minrate
@@ -203,14 +237,29 @@ case "$1" in
     loopstatus)
         loopstatus
         ;;
-    shuffle)
+    setloopstatus)
+        setloopstatus $2
+        ;;
+    shufflestatus)
         shufflestatus
         ;;
+    setshufflestatus)
+        setshufflestatus $2
+        ;;
+    volumestatus)
+        volumestatus
+        ;;
+    setvolume)
+        setvolume $2
+        ;;
+    position)
+        position
+        ;;
     help)
-	help
-	;;
+        help
+        ;;
     *)
-	echo "Invalid argument: '$1'"
-	echo "Use 'spot help' to see usage"
-	;;
+        echo "Invalid argument: '$1'"
+        echo "Use 'spot help' to see usage"
+        ;;
 esac
