@@ -3,41 +3,137 @@
 help(){
     echo "Usage: spot [OPTION]"
     echo ""
-    echo "Options:"
-    echo "  skip        Skips to the next track"
-    echo "  prev        Goes to the previous track"
-    echo "  playpause   Pauses or Unpauses"
-    echo "  status      Echos the current status of spotify"
-    echo "  artist      Echos the artist of the current track*"
-    echo "  song        Echos the title of the current track*"
-    echo "  album       Echos the album of the current track*"
+    echo "Control Options:"
+    echo "  skip"
+    echo "                  Skips to the next track"
+    echo "  prev"
+    echo "                  Goes to the previous track"
+    echo "  playpause"
+    echo "                  Pauses or Unpauses"
+    echo "  play"
+    echo "                  Unpauses the track"
+    echo "  pause"
+    echo "                  Pauses the track"
+    echo "  stop"
+    echo "                  Stops the track (Effectivly the same as pause)"
+# Seek and Setposition do not work at the moment
+#    echo "  seek [OFFSET]"
+#    echo "                  Changes playerhead to the OFFSET second of the curent track"
+#    echo "  setpos [ID] [POS]"
+#    echo "                  Starts the song given by ID and sets the playerhead to the POS second"
     echo ""
-    echo "* = output is blank if unavalible"
+    echo "Info Options:"
+    echo "  artist"
+    echo "                  Returns the artist of the current track"
+    echo "                      blank if unavaible"
+    echo "  song"
+    echo "                  Returns the title of the current track*"
+    echo "                      blank if unavaible"
+    echo "  album"
+    echo "                  Returns the album of the current track*"
+    echo "                      blank if unavaible"
+    echo "  metadata"
+    echo "                  Dumps the current metadata"
+    echo ""
+    echo "Property Options:"
+    echo "  playstatus"
+    echo "                  Returns the current status of spotify"
+    echo "                      Either 'Playing' or 'Paused'"
+    echo "  loopstatus"
+    echo "                  Returns the loop status"
+    echo "  setloopstatus [STATUS]"
+    echo "                  Changes the loop status to STATUS"
+    echo "                      Options:"
+    echo "                          THIS, THAT, THIS"
+    echo "  shufflestatus"
+    echo "                  Returns shuffle status"
+    echo "  setshufflestatus [STATUS]"
+    echo "                  Sets the shuffle status to STATUS"
+    echo "                      Options:"
+    echo "                          true, false"
+    echo "  rate"
+    echo "                  Returns the current rate"
+    echo "  setrate [RATE]"
+    echo "                  Sets the rate to RATE"
+    echo "                      Options:"
+    echo "                          THIS, THAT, THIS"
+    echo "  maxrate"
+    echo "                  Returns the maximum rate available"
+    echo "  minrate"
+    echo "                  Returns the minimum rate available"
+    echo "  volume"
+    echo "                  Returns the current volume"
+    echo "  setvolume [VOLUME]"
+    echo "                  Sets the volume to VOLUME"
+    echo "                      Options:"
+    echo "                          THIS, THIS, THAT"
+    echo "  position"
+    echo "                  Returns the position in the current track"
+    echo ""
+    echo "MIC Options:"
+    echo "  help"
+    echo "                  Displays this list"
 }
 
-skip()
+db_dest="org.mpris.MediaPlayer2.spotify"
+db_path="/org/mpris/MediaPlayer2"
+db_object="org.mpris.MediaPlayer2.Player"
+
+db_control()
 {
-    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Next
+    dbus-send --session --type=method_call --dest=$db_dest $db_path "$db_object.$1"
 }
 
-prev()
+property_call()
 {
-    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Previous
-}
-
-playpause()
-{
-    dbus-send --session --type=method_call --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.PlayPause
+    dbus-send --session --type=method_call --print-reply --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Get string:$db_object string:$1 
 }
 
 status()
 {
-    echo $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:org.mpris.MediaPlayer2.Player string:PlaybackStatus | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/')
+    output=$(property_call PlaybackStatus)
+    echo "$output" | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'
+}
+
+volumestatus()
+{
+    output=$(property_call Volume)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+ratestatus()
+{
+    output=$(property_call Rate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+minrate()
+{
+    output=$(property_call MinimumRate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+maxrate()
+{
+    output=$(property_call MaximumRate)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
+}
+
+loopstatus()
+{
+    output=$(property_call LoopStatus)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}' | tr -d '"'
+}
+
+shufflestatus()
+{
+    output=$(property_call Shuffle)
+    echo "$output" | tail -n 1 | awk -F " " '{print $3}'
 }
 
 metadata()
 {
-    dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:org.mpris.MediaPlayer2.Player string:Metadata    
+    property_call Metadata    
 }
 
 artist()
@@ -58,18 +154,24 @@ album()
     echo "$mdata"  | grep -A 1 ':album"' | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'  
 }
 
-for arg in $@
-do
-case "$arg" in
+case "$1" in
     skip)
-	    skip
-        echo "skipping song"
+	    db_control Next
         ;;
     prev)
-        prev
+        db_control Previous
         ;;
     playpause)
-	    playpause
+	    db_control PlayPause
+        ;;
+    play)
+        db_control Play
+        ;;
+    pause)
+        db_control Pause
+        ;;
+    stop)
+        db_control Stop
         ;;
     status)
         status
@@ -83,6 +185,27 @@ case "$arg" in
     album)
 	    album
 	    ;;
+    metadata)
+        metadata
+        ;;
+    volume)
+        volumestatus
+        ;;
+    rate)
+        ratestatus
+        ;;
+    minrate)
+        minrate
+        ;;
+    maxrate)
+        maxrate
+        ;;
+    loopstatus)
+        loopstatus
+        ;;
+    shuffle)
+        shufflestatus
+        ;;
     help)
 	    help
 	    ;;
@@ -90,6 +213,4 @@ case "$arg" in
 	    echo "Invalid argument: '$1'"
 	    echo "Use 'spot help' to see usage"
 	    ;;
-
 esac
-done
