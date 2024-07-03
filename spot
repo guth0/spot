@@ -26,12 +26,16 @@ help(){
     echo "  artist"
     echo "                  Returns the artist of the current track"
     echo "                      blank if unavaible"
-    echo "  song"
+    echo "  title"
     echo "                  Returns the title of the current track*"
     echo "                      blank if unavaible"
     echo "  album"
     echo "                  Returns the album of the current track*"
     echo "                      blank if unavaible"
+    echo "  creator"
+    echo "                  Returns the creator of the current track*"
+    echo "                      podcasts do not have an artist, instead the creator is in the album field"
+    echo "                      so, you must use 'spot creator' to make sure you get values when playing a podcast"
     echo "  metadata"
     echo "                  Dumps the current metadata"
     echo ""
@@ -39,36 +43,53 @@ help(){
     echo "  playstatus"
     echo "                  Returns the current status of spotify"
     echo "                      Either 'Playing' or 'Paused'"
-    echo "  loopstatus"
-    echo "                  Returns the loop status"
-    echo "  setloopstatus [STATUS]"
-    echo "                  Changes the loop status to STATUS"
+
+    echo "  loop [OPTION]"
+    echo "      status"
+    echo "                  Retusn the loop status"
+    echo "      set [STATUS] {flag}"
+    echo "                  Sets the loop status to STATUS"
     echo "                      Options:"
     echo "                          'None', 'Playlist', 'Track'"
-    echo "  shufflestatus"
+    echo "          -v, --verbose"
+    echo "                  Returns DBus information"
+
+    echo "  shuffle [OPTION]"
+    echo "      status"
     echo "                  Returns shuffle status"
-    echo "  setshufflestatus [STATUS]"
+    echo "      set [STATUS] {flag}"
     echo "                  Sets the shuffle status to STATUS"
     echo "                      Options:"
     echo "                          true, false"
-    echo "  ratestatus"
+    echo "          -v, --verbose"
+    echo "                  Returns DBus information"
+
+    echo "  rate [OPTION]"
+    echo "      status"
     echo "                  Returns the current rate"
-    echo "  setrate [RATE]"
-    echo "                  Sets the rate to RATE"
+    echo "      rate [VALUE] {flag}"
+    echo "                  Sets the rate to VALUE"
     echo "                      Options:"
     echo "                          double from maxrate to minrate (inclusive)"
     echo "                          Example:  '0.9'"
-    echo "  maxrate"
+    echo "          -v, --verbose"
+    echo "                  Returns DBus information"
+    echo "      max"
     echo "                  Returns the maximum rate available"
-    echo "  minrate"
+    echo "      min"
     echo "                  Returns the minimum rate available"
-    echo "  volumestatus"
+
+    echo "  volume [OPTION]"
+    echo "      status"
     echo "                  Returns the current volume"
-    echo "  setvolume [VOLUME]"
+    echo "      set [VOLUME] {flag}"
     echo "                  Sets the volume to VOLUME"
     echo "                      Options:"
     echo "                          double from 0 to 1"
     echo "                          Exmaple: '0.5'"
+    echo "          -v, --verbose"
+    echo "                  Returns DBus information"
+    
     echo "  position"
     echo "                  Returns the position in the current track in microseconds"
     echo "                      This has millisecond percision so the last three 0s are unused"
@@ -95,10 +116,14 @@ metadata()
 artist()
 {
     mdata=$(metadata)
-    echo "$mdata" | grep -A 2 artist | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/' 
+    output="$(echo "$mdata" | grep -A 2 artist | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/')"
+
+
+    echo "$output"
+
 }
 
-song()
+title()
 {
     mdata=$(metadata)
     echo "$mdata"  | grep -A 1 title | tail -n 1 | sed 's/.*"\([^"]*\)".*/\1/'  
@@ -117,7 +142,16 @@ property_call()
 
 property_set()
 {
-    dbus-send --session --print-reply --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Set string:$db_object string:$1 variant:$2
+    output="$(dbus-send --print-reply --session --dest=$db_dest $db_path org.freedesktop.DBus.Properties.Set string:$db_object string:$1 variant:$2)"
+
+    case "$3" in
+        -v)
+            echo "$output"
+            ;;
+        --verbose)
+            echo "$output"
+            ;;
+    esac
 }
 
 status()
@@ -134,7 +168,7 @@ loopstatus()
 
 setloopstatus()
 {
-    property_set LoopStatus "string:$1"
+    property_set LoopStatus "string:$1" $2
 }
 
 shufflestatus()
@@ -145,7 +179,7 @@ shufflestatus()
 
 setshufflestatus()
 {
-    property_set Shuffle "boolean:$1"
+    property_set Shuffle "boolean:$1" $2
 }
 
 ratestatus()
@@ -156,7 +190,7 @@ ratestatus()
 
 setratestatus()
 {
-    property_set Rate "double:$1"
+    property_set Rate "double:$1" $2
 }
 
 maxrate()
@@ -179,7 +213,7 @@ volumestatus()
 
 setvolume()
 {
-    property_set Volume "double:$1"
+    property_set Volume "double:$1" $2
 }
 
 position()
@@ -213,44 +247,87 @@ case "$1" in
     artist)
         artist
         ;;
-    song)
-        song
+    title)
+        title
         ;;
     album)
         album
         ;;
+    creator)
+        output="$(artist)"
+
+        if [ -z "$output" ]; then
+            output="$(album)"
+        fi
+
+        echo "$output"
+        ;;
     metadata)
         metadata
         ;;
-    ratestatus)
-        ratestatus
+    rate)
+        case $2 in
+            status)
+                ratestatus
+                ;;
+            set)
+                setratestatus $3 $4 
+                ;;
+            min)
+                minrate
+                ;;
+            max)
+                maxrate
+                ;;
+            *)
+                echo "Invalid argument: '$2'"
+                echo "Use 'spot help' to see usage"
+                ;;   
+        esac
         ;;
-    setratestatus)
-        setratestatus $2
+    loop)
+        case $2 in
+            status)
+                loopstatus
+                ;;
+            set)
+                setloopstatus $3 $4
+                ;;
+
+            *)
+                echo "Invalid argument: '$2'"
+                echo "Use 'spot help' to see usage"
+                ;;   
+        esac
         ;;
-    minrate)
-        minrate
+    shuffle)
+        case $2 in
+            status)
+                shufflestatus
+                ;;
+            set)
+                setshufflestatus $3 $4
+                ;;
+
+            *)
+                echo "Invalid argument: '$2'"
+                echo "Use 'spot help' to see usage"
+                ;;   
+        esac
         ;;
-    maxrate)
-        maxrate
-        ;;
-    loopstatus)
-        loopstatus
-        ;;
-    setloopstatus)
-        setloopstatus $2
-        ;;
-    shufflestatus)
-        shufflestatus
-        ;;
-    setshufflestatus)
-        setshufflestatus $2
-        ;;
-    volumestatus)
-        volumestatus
-        ;;
-    setvolume)
-        setvolume $2
+    volume)
+        case $2 in
+            status)
+                volumestatus
+                ;;
+            set)
+                setvolume $3 $4
+                ;;
+            *)
+                echo "Invalid argument: '$2'"
+                echo "Use 'spot help' to see usage"
+                ;;   
+        esac
         ;;
     position)
         position
